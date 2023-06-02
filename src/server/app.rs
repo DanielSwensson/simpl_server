@@ -1,5 +1,7 @@
-use crate::server::{HTTPStatus, HTTPVerb, Response, Service};
+use crate::server::Request;
+use crate::server::{HTTPMethod, HTTPStatus, Response, Service};
 use std::io::{prelude::*, BufReader};
+use std::path::Path;
 use std::{fs, net::TcpStream, path};
 
 pub trait RouteMatcher {
@@ -11,7 +13,7 @@ pub type Routes = Vec<Route>;
 impl RouteMatcher for Routes {
     fn find_route(&self, request: &Request) -> Option<&Route> {
         self.iter()
-            .find(|route| route.path == request.path && route.verb == request.verb)
+            .find(|route| route.path == request.path && route.method == request.method)
     }
 }
 
@@ -22,14 +24,21 @@ pub struct App {
 
 #[derive(Clone)]
 pub struct Route {
-    pub path: String,
-    pub handler: fn() -> Response,
-    pub verb: HTTPVerb,
+    pub path: Box<Path>,
+    pub handler: fn(Request) -> Response,
+    pub method: HTTPMethod,
 }
 
-pub struct Request {
-    pub path: String,
-    pub verb: HTTPVerb,
+impl Route {
+    pub fn new(path: &str, handler: fn(Request) -> Response, method: HTTPMethod) -> Route {
+        let path = Path::new(path);
+
+        Route {
+            path: Into::into(path),
+            handler,
+            method,
+        }
+    }
 }
 
 impl App {
@@ -53,12 +62,20 @@ impl App {
 
         let request_line = buf_reader.lines().next().unwrap().unwrap();
 
-        let verb = request_line.split_whitespace().next().unwrap();
-        let verb = get_verb_from_string(verb);
+        let method = request_line.split_whitespace().next().unwrap();
+        let method = get_method_from_string(method);
 
         let path = request_line.split_whitespace().nth(1).unwrap().to_string();
 
-        let response = self.handle_request(Request { path, verb });
+        let (path, query_string) = match path.split_once('?') {
+            Some((path, query_string)) => (path.to_string(), Some(query_string.to_string())),
+            None => (path, None),
+        };
+
+        let query_string = query_string.unwrap_or_default();
+
+        let response = self.handle_request(Request::new(&path, method, &query_string));
+
         match stream.write_all(response.format().as_bytes()) {
             Ok(_) => {}
             Err(e) => println!("Error writing to stream: {}", e),
@@ -74,7 +91,7 @@ impl App {
                 body: read_static_file("404"),
                 content_type: None,
             },
-            |route| (route.handler)(),
+            |route| (route.handler)(request),
         )
     }
 }
@@ -104,12 +121,12 @@ pub fn read_static_file(file_name: &str) -> Option<String> {
     }
 }
 
-fn get_verb_from_string(verb: &str) -> HTTPVerb {
+fn get_method_from_string(verb: &str) -> HTTPMethod {
     match verb {
-        "GET" => HTTPVerb::Get,
-        "POST" => HTTPVerb::Post,
-        "PUT" => HTTPVerb::Put,
-        "DELETE" => HTTPVerb::Delete,
+        "GET" => HTTPMethod::Get,
+        "POST" => HTTPMethod::Post,
+        "PUT" => HTTPMethod::Put,
+        "DELETE" => HTTPMethod::Delete,
         _ => panic!("Unknown verb"),
     }
 }

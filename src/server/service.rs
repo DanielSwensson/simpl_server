@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::server::{Route, Routes};
 
 #[derive(Clone)]
@@ -7,19 +9,23 @@ pub struct Service {
 }
 
 impl Service {
-    pub fn new(routes: Routes, namespace: String) -> Service {
+    pub fn new(routes: Routes, namespace: &str) -> Service {
         let routes = routes
             .iter()
             .map(|route| {
-                let path = format!("{}{}", namespace, route.path);
+                let path = format!("{}{}", namespace, route.path.to_str().unwrap());
+                let path = Path::new(&path);
                 Route {
-                    path,
-                    verb: route.verb.clone(),
+                    path: Into::into(path),
+                    method: route.method.clone(),
                     handler: route.handler,
                 }
             })
             .collect();
 
-        Service { routes, namespace }
+        Service {
+            routes,
+            namespace: namespace.to_string(),
+        }
     }
 }

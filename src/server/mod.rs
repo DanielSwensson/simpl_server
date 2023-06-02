@@ -2,7 +2,7 @@ mod response;
 pub use response::Response;
 
 mod app;
-pub use app::{read_static_file, App, Request, Route, RouteMatcher, Routes};
+pub use app::{read_static_file, App, Route, RouteMatcher, Routes};
 
 mod service;
 pub use service::Service;
@@ -12,6 +12,9 @@ use threadpool::ThreadPool;
 
 use std::fmt;
 use std::net::TcpListener;
+
+mod request;
+pub use request::{QueryParams, Request};
 
 pub enum HTTPStatus {
     Ok,
@@ -27,8 +30,8 @@ impl fmt::Display for HTTPStatus {
     }
 }
 
-#[derive(Clone, PartialEq)]
-pub enum HTTPVerb {
+#[derive(Clone, PartialEq, Eq)]
+pub enum HTTPMethod {
     Get,
     Post,
     Put,

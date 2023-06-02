@@ -3,26 +3,41 @@ mod server;
 fn main() {
     server::Server::new(|| {
         server::App::new()
-            .route(server::Route {
-                path: String::from("/"),
-                handler: || server::Response {
+            .route(server::Route::new(
+                "/",
+                |_query_params| server::Response {
                     status: server::HTTPStatus::Ok,
                     body: server::read_static_file("index"),
                     content_type: Some(server::ContentType::Html),
                 },
-                verb: server::HTTPVerb::Get,
-            })
+                server::HTTPMethod::Get,
+            ))
             .service(server::Service::new(
-                vec![server::Route {
-                    path: String::from("/hello"),
-                    handler: || server::Response {
-                        status: server::HTTPStatus::Ok,
-                        body: Some(String::from("Hello!!")),
-                        content_type: Some(server::ContentType::Html),
+                vec![server::Route::new(
+                    "/hello",
+                    |request| {
+                        let name = request.query_params.get("name");
+
+                        let name = match name {
+                            Some(name) => name,
+                            None => "World",
+                        };
+
+                        let count = request.query_params.get("count");
+                        let count = match count {
+                            Some(count) => count,
+                            None => "1",
+                        };
+
+                        server::Response {
+                            status: server::HTTPStatus::Ok,
+                            body: Some(format!("Hello, {:} count: {:}", name, count)),
+                            content_type: Some(server::ContentType::Html),
+                        }
                     },
-                    verb: server::HTTPVerb::Get,
-                }],
-                "/api".to_string(),
+                    server::HTTPMethod::Get,
+                )],
+                "/api",
             ))
     })
     .bind("127.0.0.1:8080")
